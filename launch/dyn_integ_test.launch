@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+	<node pkg="jps_triangulation" type="piece_locator" name="piece_locator_node" />
+	<include file="$(find jps_feature_matching)/launch/dyn_integ_test_feature_matcher.launch" />
+</launch>
