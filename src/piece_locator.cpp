@@ -75,7 +75,7 @@ void PieceLocator::imageSubscriberCallback(
   if(this->projection_matrices[j].size() >= 4)
   {
     // Generate the transformation for the current piece from the base frame.
-    sfm::triangulatePoints(
+    triangulatePoints(
         this->piece_central_points[j],
         this->projection_matrices[j],
         this->piece_poses_3d[j]);
@@ -95,7 +95,7 @@ void PieceLocator::imageSubscriberCallback(
     Point3f y_axis_temp = Point3f(
         piece_poses_3d[j][1].x - piece_poses_3d[j][0].x,
         piece_poses_3d[j][1].y - piece_poses_3d[j][0].y,
-        piece_poses_3d[j][1].z - piece_poses_3d[j][0].z, );
+        piece_poses_3d[j][1].z - piece_poses_3d[j][0].z);
     // Compute the z-axis.
     Point3f z_axis = x_axis.cross(y_axis_temp);
     double z_axis_norm = sqrt(
@@ -108,17 +108,17 @@ void PieceLocator::imageSubscriberCallback(
     Point3f y_axis = z_axis.cross(x_axis);
 
     // Obtain the quaternion from the rotation matrix.
-    piece_transform.setQuaternion(AxesToQuaternion(x_axis, y_axis, z_axis));
+    piece_transform.setRotation(AxesToQuaternion(x_axis, y_axis, z_axis));
 
     // Set and publish the transformation.
-    piece_transform.setOrigin(
+    piece_transform.setOrigin(tf::Vector3(
         piece_poses_3d[j][0].x,
         piece_poses_3d[j][0].y,
-        piece_poses_3d[j][0].z);
+        piece_poses_3d[j][0].z));
     piece_name_stream << "/piece_" << j;
     this->tf_broadcaster.sendTransform(tf::StampedTransform(
           piece_transform,
-          ros::time::now(),
+          ros::Time::now(),
           "/base",
           piece_name_stream.str()));
   }
@@ -178,7 +178,7 @@ void PoseToTransformation(tf::Point p, tf::Quaternion q, Mat &e)
 /*
  * http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
  */
-tf::Quaternion AxesToQuaternion(Point3f x_axis, Point3f, y_axis, Point3f z_axis)
+tf::Quaternion AxesToQuaternion(Point3f x_axis, Point3f y_axis, Point3f z_axis)
 {
   double rot_trace = x_axis.x + y_axis.y + z_axis.z;
   double q_norm_factor;
@@ -186,7 +186,7 @@ tf::Quaternion AxesToQuaternion(Point3f x_axis, Point3f, y_axis, Point3f z_axis)
 
   if(rot_trace > 0.0)
   {
-    q_norm_factor = sqrt(tr+1.0) * 2; // q_norm_factor=4*qw
+    q_norm_factor = sqrt(rot_trace + 1.0) * 2; // q_norm_factor=4*qw
     qw = 0.25 * q_norm_factor;
     qx = (y_axis.z - z_axis.y) / q_norm_factor;
     qy = (z_axis.x - x_axis.z) / q_norm_factor;

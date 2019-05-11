@@ -7,9 +7,10 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgcodecs/imgcodecs.hpp>
 #include <opencv2/xfeatures2d.hpp>
-#include <opencv2/sfm.hpp>
+#include <opencv4/opencv2/sfm.hpp>
 
 #include <ros/ros.h>
+#include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 
 #include <cv_bridge/cv_bridge.h>
@@ -26,6 +27,7 @@
 #include "jps_feature_matching/ImageTransform.h"
 
 using namespace cv;
+using namespace cv::sfm;
 using namespace cv::xfeatures2d;
 using namespace std;
 
@@ -59,5 +61,7 @@ class PieceLocator
 void PoseToTransformation(tf::Point p, tf::Quaternion q, Mat &e);
 
 void MatrixMultiplication(Mat a, Mat b, Mat& c);
+
+tf::Quaternion AxesToQuaternion(Point3f x_axis, Point3f y_axis, Point3f z_axis);
 
 #endif /* PIECE_LOCATOR_HPP */

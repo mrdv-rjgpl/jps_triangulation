@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(jps_triangulation)
-
+set (CMAKE_CXX_STANDARD 11)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
@@ -21,8 +21,9 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV REQUIRED)
-
+find_package(OpenCV REQUIRED PATHS "/usr/local/opencv4/")
+set(OpenCV_INCLUDE_DIRS "/usr/local/opencv4/include/opencv4/")
+file(GLOB OpenCV_LIBRARIES "/usr/local/opencv4/lib/*.so")
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -207,5 +208,4 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 add_executable(piece_locator src/piece_locator.cpp)
-add_dependencies(piece_locator ${PROJECT_NAME}_gencfg)
 target_link_libraries(piece_locator ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
