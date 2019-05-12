@@ -5,7 +5,7 @@ PieceLocator::PieceLocator(ros::NodeHandle& nh)
   int i;
   this->nh = nh;
   this->timer = this->nh.createTimer(
-      ros::Duration(0.1),
+      ros::Duration(0.5),
       &PieceLocator::timerCallback,
       this);
   this->image_sub = this->nh.subscribe(
@@ -50,81 +50,98 @@ void PieceLocator::imageSubscriberCallback(
     const jps_feature_matching::ImageTransformConstPtr& msg)
 {
   int i;
-  int j = msg->piece_index;
+  int piece_index = msg->piece_index;
   int k;
   Mat proj_mat;
   tf::Transform piece_transform;
   std::ostringstream piece_name_stream;
 
-
-  this->piece_central_points[j].push_back(vector<Point2f>());
-  k = this->piece_central_points[j].size();
-
-  for(i = 0; i < msg->transformed_points.size(); ++i)
+  if(msg->robot_stationary)
   {
-    piece_central_points[j][k].push_back(Point2f(
-          msg->transformed_points[i].x,
-          msg->transformed_points[i].y));
-  }
+    ROS_INFO("Adding current set of features to list...");
+    this->piece_central_points[piece_index].push_back(vector<Point2f>());
+    k = this->piece_central_points[piece_index].size() - 1;
 
-  // Generate the projection matrix as [K 0] * E_cw and store both,
-  // where p_c = E_cw * p_w
-  MatrixMultiplication(this->camera_matrix, this->e_cw, proj_mat);
-  this->projection_matrices[j].push_back(proj_mat);
+    for(i = 0; i < msg->transformed_points.size(); ++i)
+    {
+      piece_central_points[piece_index][k].push_back(Point2f(
+            msg->transformed_points[i].x,
+            msg->transformed_points[i].y));
+    }
 
-  if(this->projection_matrices[j].size() >= 4)
-  {
-    // Generate the transformation for the current piece from the base frame.
-    triangulatePoints(
-        this->piece_central_points[j],
-        this->projection_matrices[j],
-        this->piece_poses_3d[j]);
+    // Generate the projection matrix as [K 0] * E_cw and store both,
+    // where p_c = E_cw * p_w
+    ROS_INFO("Multiplying camera matrix with hand eye calibration result to form projection matrix...");
+    MatrixMultiplication(this->camera_matrix, this->e_cw, proj_mat);
+    this->projection_matrices[piece_index].push_back(proj_mat);
 
-    // Compute the x-axis.
-    Point3f x_axis = Point3f(
-        piece_poses_3d[j][1].x - piece_poses_3d[j][0].x,
-        piece_poses_3d[j][1].y - piece_poses_3d[j][0].y,
-        piece_poses_3d[j][1].z - piece_poses_3d[j][0].z);
-    double x_axis_norm = sqrt(
-        (x_axis.x * x_axis.x) + (x_axis.y * x_axis.y) + (x_axis.z * x_axis.z));
-    x_axis.x /= x_axis_norm;
-    x_axis.y /= x_axis_norm;
-    x_axis.z /= x_axis_norm;
+    if(this->projection_matrices[piece_index].size() >= 4)
+    {
+      ROS_INFO_STREAM("Computing 3D pose of piece " << piece_index << " with " << this->projection_matrices[piece_index].size() << " features...");
+      // Generate the transformation for the current piece from the base frame.
+      triangulatePoints(
+          this->piece_central_points[piece_index],
+          this->projection_matrices[piece_index],
+          this->piece_poses_3d[piece_index]);
+      ROS_INFO_STREAM("3D pose of piece" << piece_index << " successfully computed. Generating and publishing transformation...");
 
-    // Compute the temporary y-axis.
-    Point3f y_axis_temp = Point3f(
-        piece_poses_3d[j][1].x - piece_poses_3d[j][0].x,
-        piece_poses_3d[j][1].y - piece_poses_3d[j][0].y,
-        piece_poses_3d[j][1].z - piece_poses_3d[j][0].z);
-    // Compute the z-axis.
-    Point3f z_axis = x_axis.cross(y_axis_temp);
-    double z_axis_norm = sqrt(
-        (z_axis.x * z_axis.x) + (z_axis.y * z_axis.y) + (z_axis.z * z_axis.z));
-    z_axis.x /= z_axis_norm;
-    z_axis.y /= z_axis_norm;
-    z_axis.z /= z_axis_norm;
+      // Compute the x-axis.
+      ROS_INFO_STREAM("Computing x-axis of piece " << piece_index << "...");
+      Point3f x_axis = Point3f(
+          piece_poses_3d[piece_index][1].x - piece_poses_3d[piece_index][0].x,
+          piece_poses_3d[piece_index][1].y - piece_poses_3d[piece_index][0].y,
+          piece_poses_3d[piece_index][1].z - piece_poses_3d[piece_index][0].z);
+      double x_axis_norm = sqrt(
+          (x_axis.x * x_axis.x) + (x_axis.y * x_axis.y) + (x_axis.z * x_axis.z));
+      x_axis.x /= x_axis_norm;
+      x_axis.y /= x_axis_norm;
+      x_axis.z /= x_axis_norm;
 
-    // Compute the actual y-axis, with corrections for any distortion.
-    Point3f y_axis = z_axis.cross(x_axis);
+      // Compute the temporary y-axis.
+      ROS_INFO_STREAM("Computing temporary y-axis of piece " << piece_index << "...");
+      Point3f y_axis_temp = Point3f(
+          piece_poses_3d[piece_index][1].x - piece_poses_3d[piece_index][0].x,
+          piece_poses_3d[piece_index][1].y - piece_poses_3d[piece_index][0].y,
+          piece_poses_3d[piece_index][1].z - piece_poses_3d[piece_index][0].z);
+      // Compute the z-axis.
+      ROS_INFO_STREAM("Computing z-axis of piece " << piece_index << "...");
+      Point3f z_axis = x_axis.cross(y_axis_temp);
+      double z_axis_norm = sqrt(
+          (z_axis.x * z_axis.x) + (z_axis.y * z_axis.y) + (z_axis.z * z_axis.z));
+      z_axis.x /= z_axis_norm;
+      z_axis.y /= z_axis_norm;
+      z_axis.z /= z_axis_norm;
 
-    // Obtain the quaternion from the rotation matrix.
-    piece_transform.setRotation(AxesToQuaternion(x_axis, y_axis, z_axis));
+      // Compute the actual y-axis, with corrections for any distortion.
+      ROS_INFO_STREAM("Recomputing y-axis of piece " << piece_index << "...");
+      Point3f y_axis = z_axis.cross(x_axis);
 
-    // Set and publish the transformation.
-    piece_transform.setOrigin(tf::Vector3(
-        piece_poses_3d[j][0].x,
-        piece_poses_3d[j][0].y,
-        piece_poses_3d[j][0].z));
-    piece_name_stream << "/piece_" << j;
-    this->tf_broadcaster.sendTransform(tf::StampedTransform(
-          piece_transform,
-          ros::Time::now(),
-          "/base",
-          piece_name_stream.str()));
+      // Obtain the quaternion from the rotation matrix.
+      ROS_INFO_STREAM("Obtaining rotation matrix from axes of piece " << piece_index << "...");
+      piece_transform.setRotation(AxesToQuaternion(x_axis, y_axis, z_axis));
+
+      // Set and publish the transformation.
+      ROS_INFO_STREAM("Computing translation from physical locations of centroid of piece " << piece_index << "...");
+      piece_transform.setOrigin(tf::Vector3(
+            piece_poses_3d[piece_index][0].x,
+            piece_poses_3d[piece_index][0].y,
+            piece_poses_3d[piece_index][0].z));
+      piece_name_stream << "/piece_" << piece_index;
+      ROS_INFO_STREAM("Broadcasting transformation from /base_link to " << piece_name_stream.str() << "...");
+      this->tf_broadcaster.sendTransform(tf::StampedTransform(
+            piece_transform,
+            ros::Time::now(),
+            "/base_link",
+            piece_name_stream.str()));
+    }
+    else
+    {
+      ROS_WARN_STREAM("Cannot compute 3D pose of piece " << piece_index << " with only " << this->projection_matrices[piece_index].size() << " features...");
+    }
   }
   else
   {
-    // No operation
+    ROS_WARN_STREAM("Robot moving, discarding current set of features.");
   }
 }
 
@@ -133,7 +150,7 @@ void PieceLocator::timerCallback(const ros::TimerEvent& event)
   try
   {
     this->tf_listener.lookupTransform(
-        "/camera_link", "/base", ros::Time(0), this->base_camera_tf);
+        "/camera_link", "/base_link", ros::Time(0), this->base_camera_tf);
     PoseToTransformation(
         this->base_camera_tf.getOrigin(),
         this->base_camera_tf.getRotation(),
